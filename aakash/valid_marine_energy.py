@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Testing the loading of elevation netCDF files
-
-Let's also incorporate the oahu region, crop to that boundary, and then
-investigate
-
-Using the parameter values from levi's 2016 wave energy assessment
+File that defines a function that gives us a linestring around Oahu defining 
+two boundaries- the nearshore boundary (depth > 400 m) and the far shore 
+boundary (< 10 nautical miles from shore)
 """
 
 import xarray as xr
@@ -15,13 +12,19 @@ import matplotlib.pyplot as plt
 from os import chdir
 import numpy as np
 import scipy.ndimage
-from shapely import MultiPoint
 import geopandas as gpd
 import alphashape
+import us
+from shapely import Polygon
 
 
 chdir('/Users/amanapat/Documents/hybrid_systems/')
 
+
+oahu_dims = {'min_lon': -158.5,
+             'max_lon': -157.52,
+             'min_lat': 21.185,
+             'max_lat': 21.8}
 
 
 def crop_depth_data(rast, dims, min_depth=-400, max_depth=-5):
@@ -107,7 +110,7 @@ def calc_boundary(inland_rast):
     return bounds
 
 
-def oahu_bounds(path_to_file):
+def oahu_bounds_near_shore(path_to_file):
     """
     Simple function that puts together the calc_boundary and crop_data
     functions to allow for simple access to the boundary linestring file
@@ -132,20 +135,66 @@ def oahu_bounds(path_to_file):
     
     return bounds
     
+
+
+# Let's try to load our Hawaii shapefile, crop to Oahu, and buffer to get
+# the far-shore boundary
+
+def load_oahu_shape():
+    """
+    Loads the Hawaii shape polygon and truncates to Oahu
     
+    Thank you US python module 
+    
+    Does mean this code needs an internet connection to work but oh well
+    """
+    hawaii_info = us.states.HI
+    url = hawaii_info.shapefile_urls()
+    url_state = url['state']
+    
+    hawaii_bounds = gpd.read_file(url_state)
+    
+    crop_bounds = Polygon([(oahu_dims['min_lon'], oahu_dims['min_lat']),
+                          (oahu_dims['min_lon'], oahu_dims['max_lat']),
+                          (oahu_dims['max_lon'], oahu_dims['max_lat']),
+                          (oahu_dims['max_lon'], oahu_dims['min_lat'])])
+    
+    
+    return hawaii_bounds.clip(crop_bounds)
+
+
+def oahu_bounds_far_shore(buffer=10):
+    """
+    Takes the state bounds, buffers it by 10 nautical miles, returns crs
+    to NAD83, and returns the buffered object to be used for wave analysys
+    """
+    oahu = load_oahu_shape()
+    
+    oahu = oahu.to_crs('EPSG:3857')
+    
+    # Converting the nautical mule value to meters
+    oahu = oahu.buffer(distance=(10 * 1852))
+    
+    return oahu.to_crs('EPSG:4269').exterior
+    
+
+
 def main():
     """
     This file is primarily for importing the calc boundary function, but
     I wanted to retain some plotting in this file to double check the effects
     of changing depth etc. at a later point
     """
+    
+    # First plot for near-shore calculations
+    
     elevation = xr.open_dataset('raw_data/coast_elevation/crm_vol10.nc')
     
     elevation, _ = crop_depth_data(elevation, dims={'min_lat': 21.185,
                                              'max_lat': 21.8,
                                              'min_lon': -158.5,
                                              'max_lon': -157.52})
-    bounds = oahu_bounds('raw_data/coast_elevation/crm_vol10.nc')
+    bounds = oahu_bounds_near_shore('raw_data/coast_elevation/crm_vol10.nc')
     
     
     levels = [-400, -300, -200, -100, -5]
@@ -173,5 +222,24 @@ def main():
     plt.show()
 
 
+    # Second plot for far shore calculations
+    
+    far_bounds = oahu_bounds_far_shore()
+    
+    fig = plt.figure(3, figsize=(5, 5))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    
+    far_bounds.plot(ax=ax, color='red', markersize=0.03)
+    ax.coastlines()
+
+    ax.set_title('Far Shore Marine Energy, 10 nautical mile buffer')
+    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False,
+                      alpha=0.5, linestyle='--')
+    
+    gl.top_labels = False
+    gl.right_labels = False
+    plt.show()
+    
+    
 if __name__ == '__main__':
     main()

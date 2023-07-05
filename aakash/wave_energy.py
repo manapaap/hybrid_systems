@@ -15,11 +15,8 @@ from shapely import LineString
 
 
 
-# To add-
-# construct a better mapping around Oahu which filters for distance of <20 km
-# from the shore and greater than 400 m depth
-
-# in energy calculation- add a minimum energy and maximum energy extractable 
+# In the future I should add a try/except line to check for buffer's pickle
+# presence load to reduce time on startup
 
 
 
@@ -38,7 +35,7 @@ def energy_flux(raster, time, geopd_shape):
     # TODO: Buffer to 10 nautical miles for far-shore resources
     flux_per_m = extract_vals(rel_raster, geopd_shape)
     
-    # Coaxing from NAD84 so we can get an accurate length value
+    # Coaxing from NAD83 so we can get an accurate length value
     length = float(geopd_shape.to_crs('EPSG:3857').length)
     
     return length * flux_per_m
