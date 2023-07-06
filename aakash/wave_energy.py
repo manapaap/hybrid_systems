@@ -12,6 +12,9 @@ import xarray as xr
 import geopandas as gpd
 from polycircles import polycircles
 from shapely import LineString
+from shapely.ops import nearest_points
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
 
 
 
@@ -64,6 +67,64 @@ def draw_circle(latitude, longitude, radius):
     return circle
 
 
+def vect_to_shore(oahu_bounds, exterior_bounds, n_samples=1000):
+    """
+    Draws a vector pointing from the boundary linestring to the shoreline,
+    normalizes it
+    """
+    # Let's create the same number of vector points as samples taken
+    # to extract values, hopefully the arrays will match up nicely
+    vectors = [None for _ in range(n_samples)]
+    global iter_nums
+    iter_nums = [n / (n_samples - 1) for n in range(n_samples)]
+    
+    perimeter = exterior_bounds.loc[0]
+    state_bound = oahu_bounds[0]
+    
+    for count, value in enumerate(iter_nums):
+        # Get next point in line
+        point = perimeter.interpolate(value, normalized=True)
+        # Get the nearest point
+        point_2 = nearest_points(state_bound, point)[0]
+        # Create the line joining the two and save it
+        line = LineString([point, point_2])
+        vectors[count] = line
+        
+    vectors = gpd.GeoSeries(vectors)
+    
+    return vectors.set_crs('EPSG:4269')
+
+        
+def plot_shore_vects(oahu_bounds, exte_bounds, vectors):
+    """
+    Plots the vectors connecting our bounds to the shore
+    
+    Mostly for my own reference to double-check my own work
+    """
+    fig = plt.figure(3, figsize=(5, 5))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    
+    ax.coastlines()
+    vectors.plot(ax=ax, color='red', markersize=0.03)
+    oahu_bounds.plot(ax=ax, color='blue', markersize=0.5)
+    exte_bounds.plot(ax=ax, color='darkblue', markersize=0.5)
+    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, 
+                      y_inline=False, alpha=0.5, linestyle='--')
+    
+    gl.top_labels = False
+    gl.right_labels = False
+    plt.show()
+    
+    
+def cosine_similar(vectors, wave_direction):
+    """
+    Outputs the cosime similarity between the wave direction vector
+    and the vector pointing from the array to the shore to rescale the
+    energy values obtained
+    """
+    pass
+
+
 def extract_vals(raster_array, line, n_samples=1000, power_range=[5, 30]):
     """
     Extracts raster along a defined shapely object
@@ -79,7 +140,7 @@ def extract_vals(raster_array, line, n_samples=1000, power_range=[5, 30]):
     
     for n in range(n_samples):
         # Get next point in the line
-        point = shapely_circle.interpolate(n / n_samples - 1, normalized=True)
+        point = shapely_circle.interpolate(n / (n_samples - 1), normalized=True)
         # Access nearest xarray pixel
         value = raster_array.sel(latitude=point.y, longitude=point.x,
                                  method='nearest').data

@@ -14,8 +14,8 @@ import numpy as np
 import scipy.ndimage
 import geopandas as gpd
 import alphashape
-import us
 from shapely import Polygon
+from shapely.ops import polygonize
 
 
 chdir('/Users/amanapat/Documents/hybrid_systems/')
@@ -116,6 +116,8 @@ def oahu_bounds_near_shore(path_to_file):
     functions to allow for simple access to the boundary linestring file
     in subsequent programs
     
+    Parameter: raster of coastal relief around oahu
+    
     Returns the boundary around Oahu that defines the perimeter for obtainable
     wave energy by virtue of depth
     """
@@ -136,39 +138,42 @@ def oahu_bounds_near_shore(path_to_file):
     return bounds
     
 
-
-# Let's try to load our Hawaii shapefile, crop to Oahu, and buffer to get
-# the far-shore boundary
-
-def load_oahu_shape():
+def load_oahu_shape(path_to_file):
     """
     Loads the Hawaii shape polygon and truncates to Oahu
     
-    Thank you US python module 
+    Parameter: coastlines shapefile
     
     Does mean this code needs an internet connection to work but oh well
     """
-    hawaii_info = us.states.HI
-    url = hawaii_info.shapefile_urls()
-    url_state = url['state']
-    
-    hawaii_bounds = gpd.read_file(url_state)
+    usa_bounds = gpd.read_file(path_to_file)
     
     crop_bounds = Polygon([(oahu_dims['min_lon'], oahu_dims['min_lat']),
                           (oahu_dims['min_lon'], oahu_dims['max_lat']),
                           (oahu_dims['max_lon'], oahu_dims['max_lat']),
                           (oahu_dims['max_lon'], oahu_dims['min_lat'])])
     
+    # This is much better than the US module but it includes a bunch of
+    # tiny islands around Oahu that we don't care about and fuck up the buffer
+    # Let's polygonize this and hard code selecting the right polygon
+    # to prevent this issue. Inelegant but it doesn't matter anyway
     
-    return hawaii_bounds.clip(crop_bounds)
+    oahu_all = usa_bounds.clip(crop_bounds)
+    oahu_list = gpd.GeoSeries(polygonize(list(oahu_all['geometry'])))
+    oahu_poly = gpd.GeoSeries(oahu_list[8])
+    oahu_bounds = oahu_poly.exterior
+    
+    return oahu_bounds.set_crs('EPSG:4269')
 
 
-def oahu_bounds_far_shore(buffer=10):
+def oahu_bounds_far_shore(path_to_file, buffer=10):
     """
     Takes the state bounds, buffers it by 10 nautical miles, returns crs
     to NAD83, and returns the buffered object to be used for wave analysys
+    
+    Parameter: coastlines shapefile
     """
-    oahu = load_oahu_shape()
+    oahu = load_oahu_shape(path_to_file)
     
     oahu = oahu.to_crs('EPSG:3857')
     
@@ -177,7 +182,6 @@ def oahu_bounds_far_shore(buffer=10):
     
     return oahu.to_crs('EPSG:4269').exterior
     
-
 
 def main():
     """
@@ -224,7 +228,8 @@ def main():
 
     # Second plot for far shore calculations
     
-    far_bounds = oahu_bounds_far_shore()
+    far_bounds = oahu_bounds_far_shore('raw_data/hawaii_bounds/' +
+                                       'tl_2019_us_coastline.zip')
     
     fig = plt.figure(3, figsize=(5, 5))
     ax = plt.axes(projection=ccrs.PlateCarree())
