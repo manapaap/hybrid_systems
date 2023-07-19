@@ -69,8 +69,7 @@ def draw_circle(latitude, longitude, radius):
 
 def vect_to_shore(oahu_bounds, exterior_bounds, n_samples=1000):
     """
-    Draws a vector pointing from the boundary linestring to the shoreline,
-    normalizes it
+    Draws a vector pointing from the boundary linestring to the shoreline
     """
     # Let's create the same number of vector points as samples taken
     # to extract values, hopefully the arrays will match up nicely

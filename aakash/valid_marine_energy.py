@@ -102,10 +102,8 @@ def calc_boundary(inland_rast):
     points = coords_to_points(pairs)
     bounds = calc_concave_hull(points, alpha=21)
     
-    """
-    bounds_test = MultiPoint(pairs)
-    bounds_test = gpd.GeoSeries(bounds)
-    """
+    # bounds_test = MultiPoint(pairs)
+    # bounds_test = gpd.GeoSeries(bounds)
     
     return bounds
 
@@ -165,6 +163,18 @@ def load_oahu_shape(path_to_file):
     
     return oahu_bounds.set_crs('EPSG:4269')
 
+
+def oahu_shape_simple(oahu_bounds, alpha=10):
+    """
+    Draws the concave hull around oahu for a simpler representation
+    of the shoreline
+    """
+    point_coords = np.array(oahu_bounds[0].coords)
+    shape = alphashape.alphashape(point_coords, alpha)
+    shape = gpd.GeoSeries(shape.exterior)
+    
+    return shape.set_crs('EPSG:4269')
+    
 
 def oahu_bounds_far_shore(path_to_file, buffer=10):
     """
