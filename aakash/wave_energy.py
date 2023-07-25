@@ -15,7 +15,10 @@ from shapely import LineString
 from shapely.ops import nearest_points
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+from math import sin, cos
 
+
+n_samples = 100
 
 
 # In the future I should add a try/except line to check for buffer's pickle
@@ -23,25 +26,32 @@ import cartopy.crs as ccrs
 
 
 
-def energy_flux(raster, time, geopd_shape):
+def energy_flux(nrg_rast, geopd_shape, shore_vect, wave_vect):
     """
-    Extracts raster cell values in a circle around the defined lat/long
-    at the specified time
+    Extracts raster cell values in a shape around the defined lat/long
     
     Returns the net energy flux in kW along the wave front
     
     What this entrire file builds towards!
-    """
-    rel_raster = raster.loc[{'step': time}]
+    """    
+    # Extract energy values from the raster
+    flux_arr = extract_vals(nrg_rast, geopd_shape)
+    # Get the corresponding cosine similarity
+    cos_same = cos_similar(shore_vect, wave_vect)
     
-    # TODO: Focus only on waves with a direction towards the shore (cos similarity?)
-    # TODO: Buffer to 10 nautical miles for far-shore resources
-    flux_per_m = extract_vals(rel_raster, geopd_shape)
+    # Multiply to get the inward pointing wave energy
+    flux_arr = flux_arr * cos_same
+    # Set the max/min obtainable energy- hard coded
+    flux_arr[flux_arr < 5] = 0
+    flux_arr[flux_arr > 30] = 30
+    
+    flux_per_m = np.mean(flux_arr)
     
     # Coaxing from NAD83 so we can get an accurate length value
     length = float(geopd_shape.to_crs('EPSG:3857').length)
     
-    return length * flux_per_m
+    # Retutning a number in kW!
+    return flux_per_m * length
 
 
 def draw_circle(latitude, longitude, radius):
@@ -67,14 +77,13 @@ def draw_circle(latitude, longitude, radius):
     return circle
 
 
-def vect_to_shore(oahu_bounds, exterior_bounds, n_samples=1000):
+def vect_to_shore(oahu_bounds, exterior_bounds, n_samples=n_samples):
     """
     Draws a vector pointing from the boundary linestring to the shoreline
     """
     # Let's create the same number of vector points as samples taken
     # to extract values, hopefully the arrays will match up nicely
     vectors = [None for _ in range(n_samples)]
-    global iter_nums
     iter_nums = [n / (n_samples - 1) for n in range(n_samples)]
     
     perimeter = exterior_bounds.loc[0]
@@ -113,27 +122,110 @@ def plot_shore_vects(oahu_bounds, exte_bounds, vectors):
     gl.top_labels = False
     gl.right_labels = False
     plt.show()
-    
-    
-def cosine_similar(vectors, wave_direction):
-    """
-    Outputs the cosime similarity between the wave direction vector
-    and the vector pointing from the array to the shore to rescale the
-    energy values obtained
-    """
-    pass
 
 
-def extract_vals(raster_array, line, n_samples=1000, power_range=[5, 30]):
+def north_vects(vect_list):
+    """
+    Defines a new set of vectors with the same starting point but
+    now just point upwards towards the north pole
+    
+    Will use to get our new angles
+    """
+    vectors = [None for _ in range(len(vect_list))]
+    
+    for n, line in enumerate(vect_list):
+        point_1 = line.coords[0]
+        point_2 = point_1[0], point_1[1] + 0.1
+    
+        north = LineString([point_1, point_2])
+        vectors[n] = north
+    
+    vectors = gpd.GeoSeries(vectors)
+    
+    return vectors.set_crs('EPSG:4269')
+    
+
+def vect_angle(vects_1, vects_2):
+    """
+    Calculates the angle between two sets of vectors, intended to be the 
+    ones pointing to shore and the ones pointing north
+    """
+    angles = np.zeros(vects_1.size)
+    
+    for n, vec_1, vec_2 in zip(range(vects_1.size), vects_1, vects_2):
+        # We need to set the intersection point as our origin
+        # otherwise we are looking between vectors starting near africa
+        vec_1 = np.array(vec_1.coords)
+        vec_2 = np.array(vec_2.coords)
+        
+        origin = vec_1[0]        
+        real_vec_1 = vec_1[1] - origin
+        real_vec_2 = vec_2[1] - origin
+        
+        # Dot product and normalize!
+        product = real_vec_1 * real_vec_2
+        norm = np.linalg.norm(real_vec_1) * np.linalg.norm(real_vec_2)
+        
+        angles[n] = np.sum(product) / norm
+        
+    return np.arccos(angles)
+
+
+def wave_vector(wave_angle, shore_vect):
+    """
+    Defines a new vector pointing in the wave direction along the 
+    shore vectors
+    """
+    vectors = [None for _ in range(wave_angle.size)]
+    wave_angle = np.radians(wave_angle)
+    
+    for n, angle, line in zip(range(wave_angle.size), wave_angle, shore_vect):
+        point_1 = line.coords[0]
+        point_2 = [point_1[0] + (0.1 * sin(angle)), 
+                   point_1[1] + (0.1 * cos(angle))] 
+    
+        north = LineString([point_1, point_2])
+        vectors[n] = north
+    
+    vectors = gpd.GeoSeries(vectors)
+    
+    return vectors.set_crs('EPSG:4269')
+    
+
+def cos_similar(shore_vect, wave_vect):
+    """
+    Calculates the cosime similarity between the shore vector and 
+    the wave vector
+    """
+    similarity = np.zeros(shore_vect.size)
+    
+    for n, vect1, vect2 in zip(range(shore_vect.size), shore_vect, wave_vect):
+        # Get coordinate points
+        vect1 = np.array(vect1.coords)
+        vect2 = np.array(vect2.coords)
+        # Move to origin
+        origin = vect1[0]
+        vect1 = vect1[1] - origin
+        vect2 = vect2[1] - origin
+        # calculate the cosime simularity
+        prod = vect1.dot(vect2)
+        norm = np.linalg.norm(vect1) * np.linalg.norm(vect2)
+        similarity[n] = prod / norm
+    
+    return np.abs(similarity)
+
+
+def extract_vals(raster_array, line, n_samples=n_samples):
     """
     Extracts raster along a defined shapely object
     Raster must be extracted to the set time
     
     Sets null values to zero for ease of calculation
     
-    Returns the mean of the raster values along the profile
+    Original: Returns the mean of the raster values along the profile
+    
+    Now: returns the profile itself so I can do some calculations
     """
-    global profile
     profile = np.zeros(n_samples)
     shapely_circle = line.loc[0]
     
@@ -146,8 +238,5 @@ def extract_vals(raster_array, line, n_samples=1000, power_range=[5, 30]):
         profile[n] = float(value)
     profile = np.nan_to_num(profile)
     
-    # Restrict the range of power to between provided values
-    profile[profile < power_range[0]] = 0
-    profile[profile > power_range[1]] = power_range[1]
+    return profile
     
-    return np.mean(profile)

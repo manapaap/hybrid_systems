@@ -132,7 +132,7 @@ def format_xarr(beep):
     return boop 
 
     
-def open_file(datestr, folder='temp_download/'):
+def open_file(datestr, folder='temp_download/', open_deg=False):
     """
     Opens and processes the HS/TP files in the temp_download folder
     and returns a dict with both files
@@ -155,6 +155,12 @@ def open_file(datestr, folder='temp_download/'):
     tp_array = format_xarr(tp_array)
     
     wave_info = {'hs': hs_array, 'tp': tp_array}
+    
+    if open_deg:
+        dp_array = xr.open_dataset(folder + 'dp' + '_' + datestr + '.grb2',
+                                   engine='cfgrib')
+        dp_array = format_xarr(dp_array)
+        wave_info['dp'] = dp_array
     
     return wave_info
 
@@ -181,19 +187,20 @@ def clear_folder(folder='temp_download/'):
         remove(folder + f)
 
 
-def progress_bar(n, max_val):
+def progress_bar(n, max_val, cus_str=''):
     """
     I love progress bars in long loops
     """
     sys.stdout.write('\033[2K\033[1G')
-    print(f'Computing...{100 * n / max_val:.2f}% complete     ', end="\r")
+    print(f'Computing...{100 * n / max_val:.2f}% complete ' + cus_str,
+          end="\r")
 
 
 def plot_output(flux_array, title='5 Year Average'):
     """
     Plots the output energy field in W/m as a contour map
     """
-    levels = [0, 5, 10, 15, 20, 25, 30, 400]
+    levels = [0, 5, 10, 15, 20, 25, 30, 40]
 
     fig = plt.figure(2, figsize=(5, 5))
     ax = plt.axes(projection=ccrs.PlateCarree())
@@ -226,11 +233,23 @@ def add_data_hack(og_xarr, to_add_xarr):
     If not it returns the same and that becomes our definition
     
     Hack to initiate the loop variable
+    
+    Second level hack- the coordinate basis changes between 201709 and 201710
+    its a very small devision (~0.04%) but enough to break the script
+    
+    Because this deviation is within the grid cell, I'm just choosing to 
+    overwrite the new array longitude with the new on
+    
+    Sue me its a 4meter error
     """
     if og_xarr is None:
         return to_add_xarr
-    else: 
-        return og_xarr + to_add_xarr
+    else:
+        if og_xarr['longitude'][0] == to_add_xarr['longitude'][0]:
+            return og_xarr + to_add_xarr
+        else:
+            og_xarr['longitude'] = to_add_xarr['longitude'] 
+            return og_xarr + to_add_xarr
 
 
 def main():
@@ -250,12 +269,12 @@ def main():
         net_nrg = add_data_hack(net_nrg, energy)
         # Clear the folder - CAREFUL WITH THIS
         clear_folder(folder='temp_download/')
-            
+      
     mean_energy = net_nrg / len(dates)
-    plot_output(mean_energy, '1 Year Average')
+    plot_output(mean_energy, 'ALL Year Average')
     
     # Output the final file!
-    mean_energy.rio.to_raster('mid_data/1_year_avg.tif')
+    mean_energy.rio.to_raster('mid_data/1_year_avg_pt2.tif')
         
     
 if __name__ == '__main__':

@@ -188,9 +188,9 @@ def oahu_bounds_far_shore(path_to_file, buffer=10):
     oahu = oahu.to_crs('EPSG:3857')
     
     # Converting the nautical mule value to meters
-    oahu = oahu.buffer(distance=(10 * 1852))
+    oahu = oahu.buffer(distance=(10 * 1852)).exterior
     
-    return oahu.to_crs('EPSG:4269').exterior
+    return oahu.to_crs('EPSG:4269')
     
 
 def main():
