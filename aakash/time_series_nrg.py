@@ -26,7 +26,7 @@ import wave_energy as vect_ops
 
 
 def main():
-    start = '201406'
+    start = '200502'
     end = '201905'
     # Create our date range
     dates = download.assemble_dates(start, end)
@@ -107,11 +107,11 @@ def main():
     nrg_df = pd.DataFrame({'time': date_arr,
                            'far_nrg': nrg_far_arr,
                            'close_nrg': nrg_close_arr})
-    nrg_df.to_csv('mid_data/wave_nrg_5_year.csv')
+    nrg_df.to_csv('mid_data/wave_nrg_ALL.csv')
 
 
 if __name__ == '__main__':
-    prof = cProfile.run('main()', filename='mid_data/cprofile_test.txt')
+    prof = cProfile.run('main()')
         
         
         
@@ -119,22 +119,4 @@ if __name__ == '__main__':
         
         
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-    
+  
