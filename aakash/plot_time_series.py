@@ -11,7 +11,7 @@ from os import chdir
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import datetime
-from scipy.interpolate import make_interp_spline, BSpline
+from scipy.interpolate import make_interp_spline, BSpline, pchip_interpolate
 
 
 chdir('/Users/amanapat/Documents/hybrid_systems/')
@@ -154,6 +154,8 @@ def daily_seasonal_avg(full_data):
     locator = mdates.HourLocator()
     fmt = mdates.DateFormatter('%H')
     
+    k_spline = 3
+    
     # Initiate our subplots
     
     fig, ax = plt.subplots(2, 2, sharex=True, figsize=(8, 5))
@@ -164,10 +166,9 @@ def daily_seasonal_avg(full_data):
     
     # PLOTTING WINTER
     # Create a spline to fit the low res data
-    spl = make_interp_spline(time, 
-                             winter.far_nrg.append(pd.Series(winter.far_nrg[0])), 
-                             k=3)
-    smooth = spl(new_time)
+    smooth = pchip_interpolate(time,
+                               winter.far_nrg.append(pd.Series(winter.far_nrg[0])),
+                               new_time)
     
     # Testing for one point, the will subplot
     ax[0, 0].grid()
@@ -182,10 +183,15 @@ def daily_seasonal_avg(full_data):
     X.set_major_formatter(fmt)
     
     # PLOTTING SPRING
+    """ retaining the old interpolation just to see
     spl = make_interp_spline(time, 
                              spring.far_nrg.append(pd.Series(spring.far_nrg[0])), 
-                             k=3)
+                             k=k_spline)
     smooth = spl(new_time)
+    """
+    smooth = pchip_interpolate(time,
+                               spring.far_nrg.append(pd.Series(spring.far_nrg[0])),
+                               new_time)
     
     # Testing for one point, the will subplot
     ax[0, 1].grid()
@@ -200,10 +206,9 @@ def daily_seasonal_avg(full_data):
     X.set_major_formatter(fmt)
     
     # PLOTTING Summer
-    spl = make_interp_spline(time, 
-                             summer.far_nrg.append(pd.Series(summer.far_nrg[0])), 
-                             k=3)
-    smooth = spl(new_time)
+    smooth = pchip_interpolate(time,
+                               summer.far_nrg.append(pd.Series(summer.far_nrg[0])),
+                               new_time)
     
     # Testing for one point, the will subplot
     ax[1, 0].grid()
@@ -220,10 +225,9 @@ def daily_seasonal_avg(full_data):
     ax[1, 0].legend(loc='lower left')
     
     # PLOTTING Fall
-    spl = make_interp_spline(time, 
-                             fall.far_nrg.append(pd.Series(fall.far_nrg[0])), 
-                             k=3)
-    smooth = spl(new_time)
+    smooth = pchip_interpolate(time,
+                               fall.far_nrg.append(pd.Series(fall.far_nrg[0])),
+                               new_time)
     
     # Testing for one point, the will subplot
     ax[1, 1].grid()
