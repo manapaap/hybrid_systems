@@ -11,11 +11,14 @@ import h5pyd
 import pandas as pd
 import numpy as np
 from pyproj import Proj
-import dateutil
 import xarray as xr
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 from copy import deepcopy
+from os import chdir
+
+
+chdir('/Users/amanapat/Documents/hybrid_systems/')
 
 
 locs = {'Oahu_N': { 'lat': 21.76, 'lon': -157.9},
@@ -44,7 +47,7 @@ def indices_for_coord(f, lat_lon_dict):
     as the recorded loc should be very close to
     the one we are querying
     """
-    dset_coords = np.array(return_data(f, 'coordinates'))
+    dset_coords = return_data(f, 'coordinates', arr=True)
     loc = np.array([lat_lon_dict['lat'],
                     lat_lon_dict['lon']])
     
@@ -114,7 +117,7 @@ def fit_func(heights, array, eval_vals):
     return spline(eval_vals)
         
 
-def return_data(f, field, m=0):
+def return_data(f, field, m=0, arr=False):
     """
     Uses the h5pyd API to query data, but as that occassionally
     fails, this recursive function will ensure that 
@@ -123,7 +126,10 @@ def return_data(f, field, m=0):
     Still raises the error after unreasonable number of iters
     """
     try:
-        return f[field]
+        if arr:
+            return np.array(f[field])
+        else:
+            return f[field]
     except:
         if m > 15:
             raise OSError('Error rerieving data: Real this time')
@@ -161,12 +167,9 @@ def data_to_df(f, filter_year, dates, locs_dict):
     wind_heights = np.arange(20, 220, 20)
     pres_heights = np.arange(0, 300, 100)
     
-    # result dict
     result_dict = {key: {} for key in locs_dict.keys()}
     
     for loc, value in locs_dict.items():
-        print(loc, value)
-        global wind_arr, speed_vals, test
         # Get the elev vs. time arrays for all locs
         wind_arr = wind_points(f, wind_heights, filter_year, 
                                value['idx'], field='windspeed')
@@ -196,68 +199,75 @@ def data_to_df(f, filter_year, dates, locs_dict):
         result_dict[loc]['pres_161'] = pres_vals[:, 1]
         
         # Turn into Pandas dataframe
-        test = result_dict
-        result_dict[loc] = deepcopy(pd.DataFrame(oahu_2018[loc]))
+        result_dict[loc] = deepcopy(pd.DataFrame(result_dict[loc]))
         result_dict[loc].index = dates
         
     return result_dict
+ 
+
+def format_df(dict_df):
+    """
+    Breaks up pandas datetime64 index into year, month, day...
+    columns to reindex
     
+    renames other columns 
     
+    Does it by the whole dict
+    """
+    for key in dict_df.keys():
+        dict_df[key] = dict_df[key].rename(columns={
+            'wind_87.6': 'wind speed', 'wind_161': 'wind speed',
+            'temp_87.6': 'temperature', 'temp_161': 'temperature',
+            'pres_87.6': 'pressure', 'pres_161': 'pressure',
+            'dir_87.6': 'degrees true', 'dir_161': 'degrees true'})
+        # I tried to do this intelligently but it didn't matter
+        # so its a manual mess
+        dict_df[key]['Year'] = dict_df[key].index.year
+        dict_df[key]['Month'] = dict_df[key].index.month
+        dict_df[key]['Day'] = dict_df[key].index.day
+        dict_df[key]['Hour'] = dict_df[key].index.hour
+        dict_df[key]['Minute'] = dict_df[key].index.minute
+        # Remove the original index
+        dict_df[key].reset_index(inplace=True, drop=True)
+    
+    return dict_df
 
 
-'''
-f = h5pyd.File("/nrel/wtk/hawaii/Hawaii_2018.h5", 'r',
-               bucket="nrel-pds-hsds")
+def loc_docstr(loc_dict):
+    """
+    Creates the docstring for the csv containing the info
+    that we want
+    
+    loc_dict is of form locs_real['Oahu_N']
+    """
+    # Add in the intro string that he wants
+    line_1 = 'Source,Location ID,Jurisdiction,Latitude,Longitude,' +\
+             'Time Zone,Local Time Zone,Distance to Shore,' +\
+             'Wind Direction,Windspeed,' +\
+             'Pressure,Temperature,' +\
+             'Version\n'
+             
+    # Coords formatted for each location
+    line_2 = 'Wind Integration National Toolkit,-,Hawaii,' +\
+             f'{loc_dict["coords"][0]},' +\
+             f'{loc_dict["coords"][1]},0,-10,-,deg,m/s,' +\
+             'mB,°C,v1.00\n{}'
+                    
+    return line_1 + line_2
 
 
-# Get the time index
-str_idx = np.array(return_data(f, 'time_index'), dtype=str)
-str_idx = slicer_vectorized(str_idx, 0, 19)
-date_idx = np.array(str_idx, dtype=np.datetime64)
-
-# Indices for our period of intrest
-rel_2018 = date_idx >= np.datetime64('2018-06-01T00:00:00')
-dates_rel = date_idx[rel_2018]
-
-real_coords, space_idx = indices_for_coord(f, locs['Oahu_N'])
-
-wind_speed_heights = np.arange(20, 220, 20)
-wind_range = wind_points(f, wind_speed_heights, rel_2018, space_idx, 
-                         field='windspeed')
-
-# What naveen asked for
-eval_vals = [87.6, 161]
-# Fit a curve
-wind_speed_vals = fit_func(wind_speed_heights, wind_range, eval_vals)
-
-# Same for temperature
-temp_range = wind_points(f, wind_speed_heights, rel_2018, space_idx,
-                         field='temperature')
-temp_vals = fit_func(wind_speed_heights, temp_range, eval_vals)
-
-# Same for direction
-dir_range = wind_points(f, wind_speed_heights, rel_2018, space_idx,
-                         field='winddirection')
-dir_vals =  fit_func(wind_speed_heights, dir_range, eval_vals)
-
-# Pressure needs a new array but it will work
-pres_vals = np.array([0, 100, 200])
-pres_range = wind_points(f, pres_vals, rel_2018, space_idx,
-                         field='pressure')
-# Renormalize to get a value in mB
-pres_range = pres_range * 10
-pres_vals = fit_func(wind_speed_heights, temp_range, eval_vals)
-
-'''
-
-# TODO: Stack observations together for temp, pres, wind direction
-# and wind speed 
+def write_csv_doc(df, loc_dict, fname):
+    """
+    Writes the wind information to a CSV along with the docstring
+    containing information about the same
+    """
+    template = loc_docstr(loc_dict)
+    
+    with open('mid_data/' +  fname + '.csv', 'w') as fp:
+        fp.write(template.format(df.to_csv(index=False)))
 
 
-# Let's loop over all the locations of intrest for 2018
-# then determine the 2019 workflow
-
-if __name__ == '__main__':
+def main():
     # Query our files
     f_2018 = h5pyd.File("/nrel/wtk/hawaii/Hawaii_2018.h5", 'r',
                    bucket="nrel-pds-hsds")
@@ -300,29 +310,33 @@ if __name__ == '__main__':
     
     # Let's combine these arrays
     oahu_all = {key: {} for key in locs_real.keys()}
-    
     for loc in oahu_all.keys():
-        oahu_all[loc] = pd.concat([oahu_2018, oahu_2019])
+        oahu_all[loc] = pd.concat([oahu_2018[loc],
+                                   oahu_2019[loc]])
+        
+    # Separate this by the elevation
+    oahu_87 = {key: pd.DataFrame() for key in oahu_all.keys()}
+    oahu_161 = {key: pd.DataFrame() for key in oahu_all.keys()}
+    for loc, value in oahu_all.items():
+        for col in value.columns:
+            if '87.6' in col:
+                oahu_87[loc][col] = oahu_all[loc][col]
+            elif '161' in col:
+                oahu_161[loc][col] = oahu_all[loc][col]
     
+    # Rename to get into formatting we need
+    oahu_87 = format_df(oahu_87)
+    oahu_161 = format_df(oahu_161)
+    
+    # Output our files!
+    for key, value in oahu_87.items():
+        fname = 'wind_resource_' + key + '_87.6m'
+        write_csv_doc(value, locs_real[key], fname)
         
-            
-        
-        
+    for key, value in oahu_161.items():
+        fname = 'wind_resource_' + key + '_161m'
+        write_csv_doc(value, locs_real[key], fname)
     
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    main()
