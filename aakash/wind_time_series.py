@@ -26,6 +26,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 import sys, os
+import cartopy.crs as ccrs
 
 os.chdir('/Users/amanapat/Documents/hybrid_systems/')
 sys.path.append("aakash/")
@@ -36,6 +37,7 @@ from omni_power_oahu import progress_bar
 
 # global variables that can be tweaked
 n_turbines = 100
+rho_air = 1.293 # kg/m3
 speed_range = {'min': 3, 
                'max': 12.5,
                'cut-out': 25}  # m/s
@@ -153,6 +155,7 @@ def wind_series(coords, files, n_turbines):
         wind_speeds = [None for x in files.keys()]
         
         global k
+        k = 0
         for n, wind_file in enumerate(files.values()):
             wind_speeds[n] = return_data_recur(wind_file, 'windspeed_100m',
                                                idx_min, k)
@@ -174,10 +177,34 @@ def wind_series(coords, files, n_turbines):
             data_coords[idx] = coord
     
     return data, data_coords
+
+
+def plot_wind_points(bounds, coords):
+    """
+    Maps the locations identified for wind energy
+    """
+    fig = plt.figure(3, figsize=(5, 5))
+    ax = plt.axes(projection=ccrs.PlateCarree())
     
+    bounds.plot(ax=ax, color='blue', markersize=0.03, 
+                linestyle='dashed', alpha=0.6, label='15nmi buffer')
+    ax.coastlines()
+
+    ax.set_title('Optimal Locations for Oahu Offshore Wind')
+    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False,
+                      alpha=0.5, linestyle='--')
+    
+    plt.scatter(coords[:, 1], coords[:, 0], s=4,
+                color='red', label='Turbine Locations')
+    
+    plt.legend(loc='lower left')
+    plt.xlabel('')
+    gl.top_labels = False
+    gl.right_labels = False
+    plt.show()
 
 
-if __name__ == '__main__':
+def main():
     wind_bounds = get_bounds('raw_data/hawaii_bounds/' +
                              'tl_2019_us_coastline.zip', buffer=15)
     # Get the number of samples needed
@@ -191,4 +218,30 @@ if __name__ == '__main__':
     
     # Get the fastest wind locations!
     wind_speeds, coords = wind_series(coords, wind_files, n_turbines)
+    wind_speeds = np.array(wind_speeds)
+    coords = np.array(coords)
 
+    # Plot for sanity check of locations
+    plot_wind_points(wind_bounds, coords)
+    
+    # Power formula, scaled into kW for consistency with waves
+    wind_speeds = 0.5 * rho_air * turb_props['area'] * (wind_speeds**3) * 0.001
+
+    # convert this into net energy
+    wind_speeds = wind_speeds.sum(axis=0) 
+
+    # Let's add in our dates
+    start = np.datetime64('2014-01-01T00:00')
+    end = np.datetime64('2020-01-01T00:00')
+    dates = np.arange(start, end, np.timedelta64(1, 'h'))
+
+    # Create a dataframe!
+    wind_speeds = pd.DataFrame({'wind_nrg': wind_speeds})
+    wind_speeds.index = dates
+    
+    # Write to CSV for later ref
+    wind_speeds.to_csv('mid_data/wind_nrg_5_year.csv')
+
+
+if __name__ == '__main__':
+    main()
