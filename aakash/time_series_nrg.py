@@ -102,8 +102,7 @@ def main():
     date_arr = date_arr[~np.isnan(nrg_far_arr)]
     nrg_far_arr = nrg_far_arr[~np.isnan(nrg_far_arr)]
     nrg_close_arr = nrg_close_arr[~np.isnan(nrg_close_arr)]
-    
-    global nrg_df
+
     nrg_df = pd.DataFrame({'time': date_arr,
                            'far_nrg': nrg_far_arr,
                            'close_nrg': nrg_close_arr})

@@ -10,11 +10,8 @@ data
 import h5pyd
 import pandas as pd
 import numpy as np
-from pyproj import Proj
-import xarray as xr
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
-from copy import deepcopy
 from os import chdir
 
 
@@ -178,7 +175,7 @@ def data_to_df(f, filter_year, dates, locs_dict):
         dir_arr = wind_points(f, wind_heights, filter_year, 
                                value['idx'], field='winddirection')
         pres_arr = wind_points(f, pres_heights, filter_year, 
-                               space_idx, field='pressure')
+                               value['idx'], field='pressure')
         pres_arr = pres_arr * 10 # Convert to mB
         
         # Now, let's fit the splines and evaluate at the values
@@ -199,7 +196,7 @@ def data_to_df(f, filter_year, dates, locs_dict):
         result_dict[loc]['pres_161'] = pres_vals[:, 1]
         
         # Turn into Pandas dataframe
-        result_dict[loc] = deepcopy(pd.DataFrame(result_dict[loc]))
+        result_dict[loc] = pd.DataFrame(result_dict[loc])
         result_dict[loc].index = dates
         
     return result_dict

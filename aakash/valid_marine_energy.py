@@ -108,7 +108,7 @@ def calc_boundary(inland_rast):
     return bounds
 
 
-def oahu_bounds_near_shore(path_to_file):
+def oahu_bounds_near_shore(path_to_file, min_depth=-400):
     """
     Simple function that puts together the calc_boundary and crop_data
     functions to allow for simple access to the boundary linestring file
@@ -126,7 +126,7 @@ def oahu_bounds_near_shore(path_to_file):
                  'min_lon': -158.5,
                  'max_lon': -157.52}
     
-    _, inland = crop_depth_data(elevation, dims=oahu_dims)
+    _, inland = crop_depth_data(elevation, dims=oahu_dims, min_depth=min_depth)
     
     bounds = calc_boundary(inland)
     
@@ -187,8 +187,8 @@ def oahu_bounds_far_shore(path_to_file, buffer=10):
     
     oahu = oahu.to_crs('EPSG:3857')
     
-    # Converting the nautical mule value to meters
-    oahu = oahu.buffer(distance=(10 * 1852)).exterior
+    # Converting the nautical mile value to meters
+    oahu = oahu.buffer(distance=(buffer * 1852)).exterior
     
     return oahu.to_crs('EPSG:4269')
     
@@ -208,7 +208,8 @@ def main():
                                              'max_lat': 21.8,
                                              'min_lon': -158.5,
                                              'max_lon': -157.52})
-    bounds = oahu_bounds_near_shore('raw_data/coast_elevation/crm_vol10.nc')
+    bounds = oahu_bounds_near_shore('raw_data/coast_elevation/crm_vol10.nc',
+                                    min_depth=-400)
     
     
     levels = [-400, -300, -200, -100, -5]
@@ -239,7 +240,8 @@ def main():
     # Second plot for far shore calculations
     
     far_bounds = oahu_bounds_far_shore('raw_data/hawaii_bounds/' +
-                                       'tl_2019_us_coastline.zip')
+                                       'tl_2019_us_coastline.zip',
+                                       buffer=10)
     
     fig = plt.figure(3, figsize=(5, 5))
     ax = plt.axes(projection=ccrs.PlateCarree())

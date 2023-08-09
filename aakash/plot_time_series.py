@@ -258,8 +258,16 @@ def main():
     plot_daily_avg(daily_avg_full, days, fig=1)
     rel_oni, monthly_avg = compare_oni_nrg(full_data, el_nino)
     season_avg = daily_seasonal_avg(full_data)
-
-
+    
+    # let's create an index for the daily/monthly averages
+    start = np.datetime64('2020-01-01')
+    end = np.datetime64('2021-01-01')
+    full_idx = np.arange(start, end, np.timedelta64(1, 'D'))
+    
+    daily_avg_five.index = full_idx
+    daily_avg_full.index = full_idx
+    
+    
 if __name__ == '__main__':
     main() 
 
