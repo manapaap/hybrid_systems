@@ -7,31 +7,16 @@ Structure from time_series_nrg, and funcs from naveen_wind
 """
 
 
-# 6.1 km distance from shore
-# 100 m hub height
-# 150 m rotor diameter
-# 800 m spacing between turbines
-# up to 27 turbine current proposal
-# 12-14 km/hr windspeed needed 
-# 55 mph max speed 
-
-# 3 m/s cut in
-# 25 m/s cut out
-# 12.5 m/s max
-
-
 import h5pyd
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import CubicSpline
 import sys, os
 import cartopy.crs as ccrs
 
 os.chdir('/Users/amanapat/Documents/hybrid_systems/')
 sys.path.append("aakash/")
 import valid_marine_energy as bounds 
-import naveen_wind as wind_query
 from omni_power_oahu import progress_bar
 
 
@@ -63,7 +48,7 @@ def enable_print():
 
 def get_bounds(fpath, buffer):
     """
-    REcursively gets the bounds because this shit is broken for no reason
+    REcursively gets the bounds because this is broken for no reason
     """
     try:
         wind_bounds = bounds.oahu_bounds_far_shore(fpath, buffer=buffer)
