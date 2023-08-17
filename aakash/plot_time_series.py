@@ -10,12 +10,10 @@ import numpy as np
 from os import chdir
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import datetime
-from scipy.interpolate import make_interp_spline, BSpline, pchip_interpolate
+from scipy.interpolate import pchip_interpolate
 
 
 chdir('/Users/amanapat/Documents/hybrid_systems/')
-
 
 
 def load_data():
@@ -30,6 +28,9 @@ def load_data():
     
     full_year_data = full_year_data.set_index('time')
     five_year_data = five_year_data.set_index('time')
+    
+    full_year_data.index = full_year_data.index.tz_localize(tz='Pacific/Honolulu')
+    five_year_data.index = five_year_data.index.tz_localize(tz='Pacific/Honolulu')
     
     full_year_data.drop(full_year_data.columns[0], axis=1, inplace=True)
     five_year_data.drop(five_year_data.columns[0], axis=1, inplace=True)
@@ -66,6 +67,7 @@ def clean_load_data(oahu_loads):
         
     oahu_loads = pd.DataFrame({'nrg_use': power_arr})
     oahu_loads.index = time_arr
+    oahu_loads = oahu_loads.tz_localize(tz='Pacific/Honolulu')
     
     return oahu_loads
 
@@ -77,7 +79,11 @@ def load_data_2():
     oahu_loads = pd.read_csv('raw_data/hawaii_load_ref_long.csv')
     oahu_loads = clean_load_data(oahu_loads)
     
-    return oahu_loads
+    ghi_data = pd.read_csv('mid_data/ghi_5_year.csv')
+    ghi_data['time'] = pd.to_datetime(ghi_data['time'])
+    ghi_data.set_index('time', inplace=True)
+    
+    return oahu_loads, ghi_data
 
 
 def plot_daily_avg(daily_avg, days, title, fig=1, nrg='Wave'):
@@ -387,12 +393,17 @@ def plot_nrg_mix(renew_data):
     
     plt.figure(np.random.randint(0, 10000000))
     plt.plot(date_list, renew_data['nrg_use'],
-             label='Energy Consumption', color='red')
+             label='Energy Consumption', color='red', alpha=0.8)
     plt.plot(date_list, renew_data['wind_real'],
-             label='Wind Energy', color='grey')
-    plt.plot(date_list, renew_data['wave_real'] + renew_data['wind_real'],
-             label='Wind plus Waves', color='blue')
-    plt.legend(loc='lower center')
+             label='Wind Energy', color='grey', alpha=0.6)
+    plt.plot(date_list, renew_data['wave_real'],
+             label='Wave Energy', color='blue', alpha=0.6)
+    plt.plot(date_list, renew_data['solar_real'],
+             label='Solar Energy', color='orange', alpha=0.6)
+    plt.plot(date_list, renew_data['solar_real'] +\
+                        renew_data['wind_real'] + renew_data['wave_real'],
+                        label='Combined', color='violet')
+    plt.legend(bbox_to_anchor=(1.04, 1), borderaxespad=0)
     plt.grid()
     X = plt.gca().xaxis
     X.set_major_locator(locator)
@@ -447,10 +458,13 @@ def plot_daily_season_avg(renew_mix):
     # PLOTTING WINTER
     ax[0, 0].grid()
     ax[0, 0].set_title('DJF')
-    ax[0, 0].plot(time, winter['nrg_use'], color='red')
-    ax[0, 0].plot(time, winter['wind_real'], color='grey')
-    ax[0, 0].plot(time, winter['wind_real'] + winter['wave_real'],
-                  color='blue')
+    ax[0, 0].plot(time, winter['nrg_use'], color='red', alpha=0.8)
+    ax[0, 0].plot(time, winter['wind_real'], color='grey', alpha=0.6)
+    ax[0, 0].plot(time, winter['wave_real'], color='blue', alpha=0.6)
+    ax[0, 0].plot(time, winter['solar_real'], color='orange', alpha=0.6)
+    ax[0, 0].plot(time, winter['solar_real'] + winter['wave_real'] +\
+                  winter['wind_real'], 
+                  color='violet', alpha=1)
     X = ax[0, 0].xaxis
     ax[0, 0].set_xlim((time[0], time[-1]))
     X.set_major_locator(locator)
@@ -459,10 +473,13 @@ def plot_daily_season_avg(renew_mix):
     # PLOTTING SPRING
     ax[0, 1].grid()
     ax[0, 1].set_title('MAM')
-    ax[0, 1].plot(time, spring['nrg_use'], color='red')
-    ax[0, 1].plot(time, spring['wind_real'], color='grey')
-    ax[0, 1].plot(time, spring['wind_real'] + spring['wave_real'],
-                  color='blue')
+    ax[0, 1].plot(time, spring['nrg_use'], color='red', alpha=0.8)
+    ax[0, 1].plot(time, spring['wind_real'], color='grey', alpha=0.6)
+    ax[0, 1].plot(time, spring['wind_real'], color='blue', alpha=0.6)
+    ax[0, 1].plot(time, spring['solar_real'], color='orange', alpha=0.6)
+    ax[0, 1].plot(time, spring['solar_real'] + spring['wave_real'] +\
+                  spring['wind_real'], 
+                  color='violet', alpha=1)
     X = ax[0, 1].xaxis
     ax[0, 1].set_xlim((time[0], time[-1]))
     X.set_major_locator(locator)
@@ -472,23 +489,33 @@ def plot_daily_season_avg(renew_mix):
     ax[1, 0].grid()
     ax[1, 0].set_title('JJA')
     ax[1, 0].plot(time, summer['nrg_use'], 
-                  label='Energy Use', color='red')
-    ax[1, 0].plot(time, summer['wind_real'], label='Wind Energy', color='grey')
-    ax[1, 0].plot(time, summer['wind_real'] + summer['wave_real'],
-                  label='Wind plus Waves', color='blue')
+                  label='Energy Use', color='red', alpha=0.8)
+    ax[1, 0].plot(time, summer['wind_real'], label='Wind Energy', color='grey',
+                  alpha=0.6)
+    ax[1, 0].plot(time, summer['wave_real'], alpha=0.6,
+                  label='Wave Energy', color='blue')
+    ax[1, 0].plot(time, summer['solar_real'], alpha=0.6,
+                  label='Solar Energy', color='orange')
+    ax[1, 0].plot(time, summer['solar_real'] + summer['wave_real'] +\
+                  summer['wind_real'], label='Combined',
+                  color='violet', alpha=1)
     X = ax[1, 0].xaxis
     ax[1, 0].set_xlim((time[0], time[-1]))
     X.set_major_locator(locator)
     X.set_major_formatter(fmt)
     ax[1, 0].set_xticks(ticks)
-    ax[1, 0].legend(loc='upper left')
+    fig.legend(loc='upper right')
     
     # PLOTTING Fall
     ax[1, 1].grid()
     ax[1, 1].set_title('SON')
-    ax[1, 1].plot(time, fall['nrg_use'], color='red')
-    ax[1, 1].plot(time, fall['wind_real'], color='grey')
-    ax[1, 1].plot(time, fall['wind_real'] + fall['wave_real'], color='blue')
+    ax[1, 1].plot(time, fall['nrg_use'], color='red', alpha=0.8)
+    ax[1, 1].plot(time, fall['wind_real'], color='grey', alpha=0.6)
+    ax[1, 1].plot(time, fall['wave_real'], color='blue', alpha=0.6)
+    ax[1, 1].plot(time, fall['solar_real'], color='orange', alpha=0.6)
+    ax[1, 1].plot(time, fall['solar_real'] + fall['wave_real'] +\
+                  fall['wind_real'], 
+                  color='violet', alpha=1)
     X = ax[1, 1].xaxis
     ax[1, 1].set_xlim((time[0], time[-1]))
     X.set_major_locator(locator)
@@ -496,22 +523,71 @@ def plot_daily_season_avg(renew_mix):
     ax[1, 0].set_xticks(ticks)
     
 
-def plot_random_day(renew_anal, day=''):
+def plot_random_day(renew_anal, date=''):
     """
     Plots a random day's power cycle or allows for date selection
-    """
-    if day == '':
-        day = renew_anal.index[np.random.randint(0, len(renew_anal))]
     
-    plot_data = 'mew'
-
-
+    date in format YEAR-MM-DD
+    """
+    if date:
+        year = int(date[:4])
+        month = int(date[5:7])
+        day = int(date[8:])
+    else:
+        # Must select for day with month in mind
+        year = np.random.randint(2016, 2019)
+        month = np.random.randint(1, 13)
+        if month == 2 and year == 2016:
+            day = np.random.randint(0, 30)
+        elif month == 2:
+            day = np.random.randint(0, 29)
+        elif month in [1, 3, 5, 7, 8, 10, 12]:
+            day = np.random.randint(0, 32)
+        else:
+            day = np.random.randint(0, 31)
+        date = str(year) + '-' + str(month) + '-' + str(day)
+            
+    rel_data = renew_anal[renew_anal.index.year == year]
+    rel_data = rel_data[rel_data.index.month == month]
+    rel_data = rel_data[rel_data.index.day == day]
+    
+    plt.figure(np.random.randint(0, 10000000))
+    
+    # Create our time axis
+    base = np.datetime64('2020-01-01 00:00:00')
+    time = [base + np.timedelta64(x, 'h') for x in range(0, 24, 1)]
+    ticks = [base + np.timedelta64(x, 'h') for x in range(0, 27, 3)]
+    
+    locator = mdates.HourLocator()
+    fmt = mdates.DateFormatter('%H')
+    X = plt.gca().xaxis
+    X.set_major_locator(locator)
+    X.set_major_formatter(fmt)
+    plt.xticks(ticks)
+    
+    plt.title(f'Energy mix for {date}')
+    plt.xlabel('Hour')
+    plt.ylabel('Energy (MW)')
+    
+    plt.plot(time, rel_data['nrg_use'], 
+                  label='Energy Use', color='red', alpha=0.8)
+    plt.plot(time, rel_data['wind_real'], label='Wind Energy', color='grey',
+                  alpha=0.6)
+    plt.plot(time, rel_data['wave_real'], alpha=0.6,
+                  label='Wave Energy', color='blue')
+    plt.plot(time, rel_data['solar_real'], alpha=0.6,
+                  label='Solar Energy', color='orange')
+    plt.plot(time, rel_data['solar_real'] + rel_data['wave_real'] +\
+                  rel_data['wind_real'], label='Combined',
+                  color='violet', alpha=1)
+    plt.legend(bbox_to_anchor=(1.04, 1), borderaxespad=0)
+    plt.grid()
+    
 
 def print_info(renew_anal):
     """
     Prints some useful information/statistics about the energy production data
     """
-    print()
     print()
     print('Energy overproduction occurs ' +
           f'{100 * renew_anal["overprod"].sum() / len(renew_anal):.2f}%' + 
@@ -542,17 +618,38 @@ def print_info(renew_anal):
     
     print()
     print(f'Mean surplus duration: {np.mean(len_surp):.2f} hours')
-    print(f'Mean deficit duration: {np.mean(len_def)} hours')
+    print(f'Mean deficit duration: {np.mean(len_def):.2f} hours')
     print(f'Max surplus duration: {max(len_surp)} hours')
     print(f'Max deficit duration: {max(len_def)} hours')
-        
+
+
+def calc_sol_area(renew_anal, ghi_data, goal=1.5):
+    """
+    Calculates a representative area of solar panels needed to 
+    make up the deficit in production, and creates
+    the time series for the same
+    """
+    mean_deficit = renew_anal.query(f"overprod == {False}")["nrg_diff"].mean()
+    # Let's aim for the mean deficit times some factor
+    goal_energy = mean_deficit * goal
+    # Mean GHI during production hours as a "representative" ghi
+    # with a 20% efficiency, and convert to MW
+    typ_ghi = float(ghi_data.query('ghi > 0.0').mean() * 0.2) * 10e-6
+    # area of panels required
+    area = goal_energy / typ_ghi
+    print()
+    print()
+    print(f'Need {area / 4047:.2f} acres of panels')
+    # actual energy time series, and back into MW
+    ghi_data['solar_real'] = area * ghi_data['ghi'] * 10e-6 * 0.2
     
-
-
+    return ghi_data
+    
+    
 def main():
     global renew_anal
     full_data, five_data, el_nino, wind_data = load_data()
-    oahu_load = load_data_2()
+    oahu_load, ghi_data = load_data_2()
     
     daily_avg_five = five_data.groupby([five_data.index.month, 
                                         five_data.index.day]).mean()
@@ -570,11 +667,11 @@ def main():
     # Seasonal averages
     # rel_oni, monthly_avg = compare_oni_nrg(full_data, el_nino)
     
-    season_avg_wave = daily_seasonal_avg(full_data, energy_type='Wave',
+    daily_seasonal_avg(full_data, energy_type='Wave',
                                          nrg='far_nrg')
-    season_avg_wind = daily_seasonal_avg_no_interp(wind_data, energy_type='Wind',
+    daily_seasonal_avg_no_interp(wind_data, energy_type='Wind',
                                                    nrg='wind_nrg')
-        
+            
     # let's create an index for the daily/monthly averages
     start = np.datetime64('2020-01-01')
     end = np.datetime64('2021-01-01')
@@ -587,33 +684,65 @@ def main():
     renew_data = wind_data.loc[(wind_data.index >= f'{five_data.index[0]}') &\
                               (wind_data.index < f'{five_data.index[-1]}')]
     
+    renew_data = renew_data.tz_convert(tz='Pacific/Honolulu')
     # Let's create an interpolated time series for wave energy, 
     # far shore because of "environmentalism", and append to the wind df
-    renew_data['wave_nrg'] = pchip_interpolate(five_data.index, 
+    renew_data['wave_nrg'] = pchip_interpolate(np.asarray(five_data.index, 
+                                                          dtype=float), 
                                                five_data.far_nrg,
-                                               renew_data.index)
+                                               np.asarray(renew_data.index, 
+                                                          dtype=float))
     # Scale for realistically obtainable energy, and in MW for better axes
     renew_data['wind_real'] = renew_data['wind_nrg'] * 0.4 * 0.001
     renew_data['wave_real'] = renew_data['wave_nrg'] * 0.1 * 0.001
     
-    
-    # Scale for the three-year analysis comparing it to the load data
+    # Scale for the two-year analysis comparing it to the load data
     renew_data = renew_data.merge(oahu_load, how='left', 
                                   left_index=True, right_index=True)
     renew_anal = renew_data.dropna(axis=0, how='any')
     renew_anal = renew_anal.loc[renew_anal.index <\
-                                pd.to_datetime('2019-01-01 00:00:00')]
+                                pd.to_datetime('2019-01-01 00:00:00').\
+                                    tz_localize(tz='Pacific/Honolulu')]
     
     # How often do we meet demand?
     renew_anal['nrg_diff'] = renew_anal['nrg_use'] - (renew_anal['wave_real'] +
                                                       renew_anal['wind_real'])
     renew_anal['overprod'] = renew_anal['nrg_diff'] < 0
     
+    # Calculate solar energy requirements
+    ghi_data = calc_sol_area(renew_anal, ghi_data, goal=1.5)
+    
+    # Let's do the seasonal solar flux from before for solar too 
+    
+    daily_avg_solar = (ghi_data['solar_real'] * 10e3).groupby([ghi_data.index.month, 
+                                                 ghi_data.index.day]).mean()
+    plot_daily_avg(daily_avg_solar, days, fig=3, nrg='Solar',
+                   title='Daily Average of Needed Solar Energy, 2014-2019')
+    
+    daily_seasonal_avg_no_interp(ghi_data * 10e3, energy_type='Solar',
+                                                    nrg='solar_real')
+    
+    # Merge calculated solar time series
+    renew_anal = renew_anal.merge(ghi_data, how='left',
+                                  left_index=True, right_index=True)
+    renew_anal = renew_anal.tz_convert(tz='Pacific/Honolulu')
+    
+    # Reduce energy diff by adding impact of solar
+    renew_anal['nrg_diff'] -= renew_anal['solar_real']
+    renew_anal['overprod'] = renew_anal['nrg_diff'] < 0
+    
+    # Get some plots and statistics
     print_info(renew_anal)
     
     plot_nrg_mix(renew_anal)
-    plot_daily_season_avg(renew_data.dropna(axis=0, how='any'))
+    plot_daily_season_avg(renew_anal)
     
+    # Let's write the df to a csv and analyze characteristics
+    # in a different file- this has gotten long and I can
+    # always import plotting funcs when necessary
+    renew_anal.to_csv('final_data/nrg_mix_2016-18.csv')
+
+
 if __name__ == '__main__':
     main() 
 

@@ -126,32 +126,27 @@ def wind_series(coords, files, n_turbines):
     for m, coord in enumerate(coords[:, ::-1]):
         # Bestie
         progress_bar(m + 1, len(coords))
-        
-        print()
-        print('Coord_calc', m)
+            
         dist_mat = grid_coords - coord
         dist_mat = dist_mat**2
         dist_sq = dist_mat[:, 0] + dist_mat[:, 1]
         # Index of our location of intrest
         idx_min = dist_sq.argmin()
         
-        print('Speed lookup')
         # Store the time series values we need
         wind_speeds = [None for x in files.keys()]
-        
-        global k
+
         k = 0
         for n, wind_file in enumerate(files.values()):
             wind_speeds[n] = return_data_recur(wind_file, 'windspeed_100m',
                                                idx_min, k)
-        print('Speed edit')
+
         # Combine and edit for vals we need for turbine
         wind_speeds = np.concatenate(wind_speeds)
         wind_speeds[wind_speeds < speed_range['min']] = 0
         wind_speeds[wind_speeds >= speed_range['cut-out']] = 0
         wind_speeds[wind_speeds > speed_range['max']] = speed_range['max']
         
-        print('Store speed')
         # Calc mean and compare to stored values
         mean_speed = wind_speeds.mean()
         if mean_speed > data_means.min():
@@ -223,6 +218,10 @@ def main():
     # Create a dataframe!
     wind_speeds = pd.DataFrame({'wind_nrg': wind_speeds})
     wind_speeds.index = dates
+    
+    # Fix timezone
+    wind_speeds.index = wind_speeds.index.tz_localize(tz='UTC')
+    wind_speeds.index = wind_speeds.index.tz_convert(tz='Pacific/Honolulu')
     
     # Write to CSV for later ref
     wind_speeds.to_csv('mid_data/wind_nrg_5_year.csv')
