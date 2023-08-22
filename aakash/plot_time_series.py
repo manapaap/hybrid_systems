@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Plots ana general analysis of the time series wave data
+Plots and general analysis of the time series wave data
 """
 
 
@@ -11,6 +11,7 @@ from os import chdir
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from scipy.interpolate import pchip_interpolate
+from copy import deepcopy
 
 
 chdir('/Users/amanapat/Documents/hybrid_systems/')
@@ -634,18 +635,58 @@ def calc_sol_area(renew_anal, ghi_data, goal=1.5):
     goal_energy = mean_deficit * goal
     # Mean GHI during production hours as a "representative" ghi
     # with a 20% efficiency, and convert to MW
-    typ_ghi = float(ghi_data.query('ghi > 0.0').mean() * 0.2) * 10e-6
+    typ_ghi = float(ghi_data.query('ghi > 0.0').mean() * 0.2) * 10**-6
     # area of panels required
     area = goal_energy / typ_ghi
     print()
     print()
     print(f'Need {area / 4047:.2f} acres of panels')
     # actual energy time series, and back into MW
-    ghi_data['solar_real'] = area * ghi_data['ghi'] * 10e-6 * 0.2
+    ghi_data['solar_real'] = area * ghi_data['ghi'] * 10**-6 * 0.2
     
     return ghi_data
+
+
+def solar_coverage(renew_anal):
+    """
+    Calculates percentage of time overproduction occurs as a function
+    of area of solar panels
+    """
+    areas = np.arange(0, 3000, 5) # acres
+    perc_overprod = np.zeros(areas.shape)
+    areas_m = areas * 4047 # convert to m2
     
+    analyze = deepcopy(renew_anal)
     
+    for n, area in enumerate(areas_m):
+        analyze['solar_real'] = area * analyze['ghi'] * 10**-6 * 0.2
+        analyze['nrg_diff'] = analyze['nrg_use'] -\
+                                    (analyze['wave_real'] +
+                                     analyze['wind_real'] + 
+                                     analyze['solar_real'])
+        analyze['overprod'] = analyze['nrg_diff'] < 0
+        
+        perc_overprod[n] = 100 * analyze["overprod"].sum() / len(analyze)
+    
+    # Fit a polynomial for noq
+    perc_prime = np.diff(perc_overprod) / 5
+    smooth = np.polyfit(areas[1:], perc_prime, 4)
+    smooth_func = np.poly1d(smooth)
+    smooth = smooth_func(areas[1:])
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+    ax1.plot(areas, perc_overprod)
+    ax1.set_ylabel('Energy Overprod. %')
+    ax1.set_title('Solar Deployment impact on Energy')
+    ax1.grid()
+    
+    ax2.plot(areas[1:], perc_prime, alpha=0.8)
+    ax2.plot(areas[1:], smooth, color='red', linestyle='dashed')
+    ax2.grid()
+    ax2.set_xlabel('Area of Panels (acres)')
+    ax2.set_ylabel('dE/da')
+
+
 def main():
     global renew_anal
     full_data, five_data, el_nino, wind_data = load_data()
@@ -714,12 +755,12 @@ def main():
     
     # Let's do the seasonal solar flux from before for solar too 
     
-    daily_avg_solar = (ghi_data['solar_real'] * 10e3).groupby([ghi_data.index.month, 
+    daily_avg_solar = (ghi_data['solar_real'] * 10**3).groupby([ghi_data.index.month, 
                                                  ghi_data.index.day]).mean()
     plot_daily_avg(daily_avg_solar, days, fig=3, nrg='Solar',
                    title='Daily Average of Needed Solar Energy, 2014-2019')
     
-    daily_seasonal_avg_no_interp(ghi_data * 10e3, energy_type='Solar',
+    daily_seasonal_avg_no_interp(ghi_data * 10**3, energy_type='Solar',
                                                     nrg='solar_real')
     
     # Merge calculated solar time series
@@ -728,7 +769,9 @@ def main():
     renew_anal = renew_anal.tz_convert(tz='Pacific/Honolulu')
     
     # Reduce energy diff by adding impact of solar
-    renew_anal['nrg_diff'] -= renew_anal['solar_real']
+    renew_anal['nrg_diff'] = renew_anal['nrg_use'] - (renew_anal['wave_real'] +
+                                                      renew_anal['wind_real'] + 
+                                                      renew_anal['solar_real'])
     renew_anal['overprod'] = renew_anal['nrg_diff'] < 0
     
     # Get some plots and statistics
@@ -736,6 +779,8 @@ def main():
     
     plot_nrg_mix(renew_anal)
     plot_daily_season_avg(renew_anal)
+    
+    solar_coverage(renew_anal)
     
     # Let's write the df to a csv and analyze characteristics
     # in a different file- this has gotten long and I can
@@ -745,4 +790,3 @@ def main():
 
 if __name__ == '__main__':
     main() 
-
