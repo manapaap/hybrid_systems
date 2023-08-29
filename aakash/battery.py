@@ -214,7 +214,6 @@ def main():
     
     # Let's do a series of trials to determine the minimum necessary storage
     # requirements to achieve full renewables
-    
     batt = needed_cap_game(renew_mix)
     
     renew_mix = simulate_battery(renew_mix, max_storage=batt,
@@ -223,7 +222,6 @@ def main():
     
     # Let's now assess that energy storage requirement given some
     # variable base load
-    
     load = needed_base_game(renew_mix, 565 * 10)
     
     renew_mix = simulate_load(renew_mix, batt=565 * 10,
@@ -238,7 +236,7 @@ def main():
     renew_mix = simulate_load(renew_mix, batt, load)
     plot_battery(renew_mix, batt, load)
     print('\n\n\nPower needs met ' +
-          f'{100 * len(renew_mix.query("battery == 0.0")) / len(renew_mix):.2f}' +
+          f'{100 * len(renew_mix.query("battery > 0.0")) / len(renew_mix):.2f}' +
           '% of the time')
 
 

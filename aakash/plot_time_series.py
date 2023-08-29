@@ -476,7 +476,7 @@ def plot_daily_season_avg(renew_mix):
     ax[0, 1].set_title('MAM')
     ax[0, 1].plot(time, spring['nrg_use'], color='red', alpha=0.8)
     ax[0, 1].plot(time, spring['wind_real'], color='grey', alpha=0.6)
-    ax[0, 1].plot(time, spring['wind_real'], color='blue', alpha=0.6)
+    ax[0, 1].plot(time, spring['wave_real'], color='blue', alpha=0.6)
     ax[0, 1].plot(time, spring['solar_real'], color='orange', alpha=0.6)
     ax[0, 1].plot(time, spring['solar_real'] + spring['wave_real'] +\
                   spring['wind_real'], 
@@ -530,10 +530,16 @@ def plot_random_day(renew_anal, date=''):
     
     date in format YEAR-MM-DD
     """
-    if date:
+    if date == 'given':
+        rel_data = renew_anal
+    elif date == 'given':
         year = int(date[:4])
         month = int(date[5:7])
         day = int(date[8:])
+        
+        rel_data = renew_anal[renew_anal.index.year == year]
+        rel_data = rel_data[rel_data.index.month == month]
+        rel_data = rel_data[rel_data.index.day == day]
     else:
         # Must select for day with month in mind
         year = np.random.randint(2016, 2019)
@@ -547,11 +553,12 @@ def plot_random_day(renew_anal, date=''):
         else:
             day = np.random.randint(0, 31)
         date = str(year) + '-' + str(month) + '-' + str(day)
+        
+        rel_data = renew_anal[renew_anal.index.year == year]
+        rel_data = rel_data[rel_data.index.month == month]
+        rel_data = rel_data[rel_data.index.day == day]
             
-    rel_data = renew_anal[renew_anal.index.year == year]
-    rel_data = rel_data[rel_data.index.month == month]
-    rel_data = rel_data[rel_data.index.day == day]
-    
+        
     plt.figure(np.random.randint(0, 10000000))
     
     # Create our time axis
